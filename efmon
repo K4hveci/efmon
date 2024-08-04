@@ -1,0 +1,128 @@
+#!/bin/bash
+
+BLUE='\033[0;34m'
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+
+USE_IWCONFIG=false
+DURUM=""
+
+kullanim(){
+	echo -e "                 ${BLUE} efmon v1.0 ${NC}                              "
+	echo ""
+	echo "efmon: Bu tool monitör modu kolayca açıp kapatabilmeniz içindir."
+	echo -e "Kullanım için ${BLUE}efmon${NC} yazmanız ve parametre ile cihaz/interface belirlemeniz yeterlidir."
+	echo -e "Bu tool ${RED}airmon-ng${NC} kullanmaktadır."
+	echo ""
+	echo "-h/--help:  Bu yardım mesajını yazdırır."
+	echo "-b/--baslat: Monitro modu başlatmak için girmeniz gereken parametre."
+	echo "-k/--kapat: Monitor modu kapatmak için girmeniz gereken parametre."
+	echo "-d/--durum: Monitor modun açık veya kapalı olduğunu görmeniz için girmeniz gereken parametre."
+	echo "-w/--iwconfig: Monitor modu 'airmon-ng' yerine 'iwconfig' ile başlatır."
+	echo ""
+	echo -e "Örnek kullanım: ${BLUE}efmon -b wlan0 ${NC}"
+	echo -e "Örnek kullanım 2: ${BLUE}efmon --kapat -w wlan0mon${NC}"
+	echo -e "NOT: ${BLUE}efmon wlan0${NC} komutu monitor mod başlatır aynı, ${BLUE}-b${NC} yazmışsınız gibi."
+	echo ""
+}
+
+
+monitor_baslat(){
+	ifconfig "$INTERFACE" down
+
+	if [ "$USE_IWCONFIG" = true ]; then
+    		iwconfig "$INTERFACE" mode Monitor
+	else
+    		airmon-ng check kill
+    		airmon-ng start "$INTERFACE"
+	fi
+
+	ifconfig "$INTERFACE" up
+
+	mode=$(iwconfig "$INTERFACE" 2>/dev/null | grep -o "Mode:Monitor")
+        if [ "$mode" == "Mode:Monitor" ];
+	then
+                echo ""
+                echo -e "${GREEN}Monitor moda geçtik reis, iyi hackler${NC}"
+                echo ""
+        else
+                echo ""
+                echo -e "${RED}ERROR: Olmadı abi bi sıkıntı olabilir, tekrar dene${NC}"
+                echo ""
+        fi
+
+}
+
+monitor_kapat(){
+	ifconfig "$INTERFACE" down
+
+	if [ "$USE_IWCONFIG" = true ]; then
+                iwconfig "$INTERFACE" mode Managed
+        else
+                airmon-ng stop "$INTERFACE"
+	fi
+
+	ifconfig "$INTERFACE" up
+	service NetworkManager start
+
+	mode=$(iwconfig "$INTERFACE" 2>/dev/null | grep -o "Mode:Managed")
+        if [ "$mode" == "Mode:Managed" ]; then
+                echo ""
+                echo -e "${GREEN}Monitor mod başarıyla kapatıldı.${NC}"
+                echo ""
+        else
+                echo ""
+                echo -e "${RED}ERROR: Olmadı abi bi sıkıntı olabilir, tekrar dene${NC}"
+                echo ""
+        fi
+}
+
+monitor_durum(){
+	mode=$(iwconfig "$INTERFACE" 2>/dev/null | grep -o "Mode:Monitor")
+        if [ "$mode" == "Mode:Monitor" ]; then
+                echo ""
+                echo -e "${BLUE}Monitor moddasın aga.${NC}"
+                echo ""
+        else
+                echo ""
+                echo -e "${BLUE}Monitor modda değilsin bu şekilde tarama yapılmaz, 'efmon -b <interface>' ile geçebilirsin ama.${NC}"
+                echo ""
+        fi
+}
+
+
+if [ "$#" -lt 2 ]; then
+    kullanim
+fi
+
+while [[ "$1" != "" ]]; do
+	case $1 in
+		-b | --baslat ) DURUM="monitor_baslat"
+					;;
+		-k | --kapat ) DURUM="monitor_kapat"
+					;;
+		-h | --help ) DURUM="kullanim"
+					;;
+		-d | --durum ) DURUM="monitor_durum"
+					;;
+		-w | --iwconfig ) USE_IWCONFIG=true
+				  	;;
+		*)		INTERFACE=$1
+					;;
+	esac
+	shift
+done
+
+if [ -z "$INTERFACE" ]; then
+    echo -e "${RED}Usta arayüz girmedin.${NC}"
+    kullanim
+fi
+
+if [ "$DURUM" != "" ]; then
+	$DURUM
+else
+	kullanim
+fi
+
